@@ -31,17 +31,17 @@ def get_parser():
 
 # Evaluate the models.
 def evaluate_model(label_folder, output_folder):
-    # Get the records.
+    # Find the records.
     records = find_records(label_folder)
 
-    # Load the signals and diagnoses, when available, from the header files.
+    # Load the signals and diagnoses, when available, from the header files for the records.
     snrs = list()
     label_dxs = list()
     output_dxs = list()
 
-    # Iterate over records.
+    # Iterate over the records.
     for record in records:
-        # Load signals, if available, and compute SNR.
+        # Load the signals, if available, and compute the SNR for each signal.
         label_record = os.path.join(label_folder, record)
         output_record = os.path.join(output_folder, record)
 
@@ -63,21 +63,18 @@ def evaluate_model(label_folder, output_folder):
         snr = compute_snr(label_signal, output_signal)
         snrs.append(snr)
 
-        # Load diagnoses, if available.
-        label_header_file = get_header_file(label_record)
-        label_header = load_text(label_header_file)
-        label_dx = get_diagnosis(label_header)
-        label_dxs.append(label_dx)
+        # Load the dx classes, if available.
+        label_dx = load_dx(label_record)
+        output_dx = load_dx(output_record)
 
-        output_header_file = get_header_file(output_record)
-        output_header = load_text(output_header_file)
-        output_dx = get_diagnosis(output_header)
-        output_dxs.append(output_dx)
+        if label_dx:
+            label_dxs.append(label_dx)
+            output_dxs.append(output_dx)
 
-    # Summarize results.
+    # Summarize the results.
 
     ###
-    ### TO-DO: Decide how to combine SNRs, especially if some signals are missing.
+    ### TO-DO: Decide how to combine the SNRs, especially if some signals are missing.
     ###
 
     if all(snr is not None for snr in snrs):
