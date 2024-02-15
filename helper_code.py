@@ -391,9 +391,8 @@ def trim_signal(input_signal, num_samples):
 
 # Compute SNR.
 def compute_snr(label_signal, output_signal):
-    if label_signal is None or output_signal is None:
-        return None
-
+    label_signal = np.asarray(label_signal)
+    output_signal = np.asarray(output_signal)
     assert(np.all(np.shape(label_signal) == np.shape(output_signal)))
 
     label_signal[np.isnan(label_signal)] = 0
@@ -410,6 +409,89 @@ def compute_snr(label_signal, output_signal):
         snr = float('inf')
 
     return snr
+
+# Compute the mean signal power to median noise power metric.
+def compute_snr_median(label_signal, output_signal):
+    label_signal = np.asarray(label_signal)
+    output_signal = np.asarray(output_signal)
+    assert(np.all(np.shape(label_signal) == np.shape(output_signal)))
+
+    label_signal[np.isnan(label_signal)] = 0
+    output_signal[np.isnan(output_signal)] = 0
+
+    noise_signal = output_signal - label_signal
+
+    x = np.mean(label_signal**2)
+    y = np.median(noise_signal**2)
+
+    if y > 0:
+        snr = 10 * np.log10(x / y)
+    else:
+        snr = float('inf')
+
+    return snr
+
+# Compute a metric inspired by the Kolmogorov-Smirnov test statistic.
+def compute_ks_metric(label_signal, output_signal):
+    label_signal = np.asarray(label_signal)
+    output_signal = np.asarray(output_signal)
+    assert(np.all(np.shape(label_signal) == np.shape(output_signal)))
+
+    label_signal[np.isnan(label_signal)] = 0
+    output_signal[np.isnan(output_signal)] = 0
+
+    label_signal_cdf = np.cumsum(np.abs(label_signal))
+    output_signal_cdf = np.cumsum(np.abs(output_signal))
+
+    if label_signal_cdf[-1] > 0:
+        label_signal_cdf = label_signal_cdf / label_signal_cdf[-1]
+    if output_signal_cdf[-1] > 0:
+        output_signal_cdf = output_signal_cdf / output_signal_cdf[-1]
+
+    goodness_of_fit = 1.0 - np.max(np.abs(label_signal_cdf - output_signal_cdf))
+
+    return goodness_of_fit
+
+# Compute the ASCI metric.
+def compute_asci_metric(label_signal, output_signal, beta=0.05):
+    label_signal = np.asarray(label_signal)
+    output_signal = np.asarray(output_signal)
+    assert(np.all(np.shape(label_signal) == np.shape(output_signal)))
+
+    label_signal[np.isnan(label_signal)] = 0
+    output_signal[np.isnan(output_signal)] = 0
+
+    if beta <= 0 or beta > 1:
+        raise ValueError('The beta value should be greater than 0 and less than or equal to 1.')
+
+    threshold = beta * np.std(label_signal)
+
+    noise_signal = np.abs(label_signal - output_signal)
+
+    discrete_noise = np.zeros_like(noise_signal)
+    discrete_noise[noise_signal <= threshold] = 1
+    discrete_noise[noise_signal > threshold] = -1
+
+    asci = np.mean(discrete_noise)
+
+    return asci
+
+# Compute weighted absolute difference.
+def compute_weighted_absolute_difference(label_signal, output_signal, fs):
+    label_signal = np.asarray(label_signal)
+    output_signal = np.asarray(output_signal)
+    assert(np.all(np.shape(label_signal) == np.shape(output_signal)))
+
+    from scipy.signal import butter, filtfilt
+
+    b, a = butter(5, fs/4, fs=fs)
+    x1 = filtfilt(b, a, label_signal, method='gust')
+    x2 = 1-((0.5/np.max(x1))*x1)
+    n = np.sum(x2)
+    
+    weighted_absolute_difference_metric = np.sum(np.abs(label_signal-output_signal)*x2)/n
+
+    return weighted_absolute_difference_metric
 
 ### Other helper functions
 
