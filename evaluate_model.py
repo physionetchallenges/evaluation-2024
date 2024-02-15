@@ -31,7 +31,7 @@ def get_parser():
     return parser
 
 # Evaluate the models.
-def evaluate_model(label_folder, output_folder):
+def evaluate_model(label_folder, output_folder, extra_scores=False):
     # Find the records.
     records = find_records(label_folder)
     num_records = len(records)
@@ -88,51 +88,59 @@ def evaluate_model(label_folder, output_folder):
                 values.append(value)
             snrs.append(values)
 
-            values = list()
-            for j in range(num_channels):
-                value = compute_snr_median(label_signal[:, j], output_signal[:, j])
-                values.append(value)
-            snrs_median.append(values) 
+            if extra_scores:
+                values = list()
+                for j in range(num_channels):
+                    value = compute_snr_median(label_signal[:, j], output_signal[:, j])
+                    values.append(value)
+                snrs_median.append(values) 
 
-            values = list()
-            for j in range(num_channels):
-                value = compute_ks_metric(label_signal[:, j], output_signal[:, j])
-                values.append(value)
-            ks_metric.append(values)
+                values = list()
+                for j in range(num_channels):
+                    value = compute_ks_metric(label_signal[:, j], output_signal[:, j])
+                    values.append(value)
+                ks_metric.append(values)
 
-            values = list()
-            for j in range(num_channels):
-                value = compute_asci_metric(label_signal[:, j], output_signal[:, j])
-                values.append(value)
-            asci_metric.append(values)             
- 
-            values = list()
-            for j in range(num_channels):
-                value = compute_weighted_absolute_difference(label_signal[:, j], output_signal[:, j], sampling_frequency)
-                values.append(value)
-            weighted_absolute_difference_metric.append(values)
+                values = list()
+                for j in range(num_channels):
+                    value = compute_asci_metric(label_signal[:, j], output_signal[:, j])
+                    values.append(value)
+                asci_metric.append(values)             
+    
+                values = list()
+                for j in range(num_channels):
+                    value = compute_weighted_absolute_difference(label_signal[:, j], output_signal[:, j], sampling_frequency)
+                    values.append(value)
+                weighted_absolute_difference_metric.append(values)
 
     if records_completed_signal_reconstruction:
         snrs = np.concatenate(snrs)
         mean_snr = np.mean(snrs)
 
-        snrs_median = np.concatenate(snrs_median)
-        mean_snr_median = np.mean(snrs_median)
+        if extra_scores:
+            snrs_median = np.concatenate(snrs_median)
+            mean_snr_median = np.mean(snrs_median)
 
-        ks_metric = np.concatenate(ks_metric)
-        mean_ks_metric = np.mean(ks_metric)
+            ks_metric = np.concatenate(ks_metric)
+            mean_ks_metric = np.mean(ks_metric)
 
-        asci_metric = np.concatenate(asci_metric)
-        mean_asci_metric = np.mean(asci_metric)
+            asci_metric = np.concatenate(asci_metric)
+            mean_asci_metric = np.mean(asci_metric)
 
-        weighted_absolute_difference_metric = np.concatenate(weighted_absolute_difference_metric)
-        mean_weighted_absolute_difference_metric = np.mean(weighted_absolute_difference_metric)
+            weighted_absolute_difference_metric = np.concatenate(weighted_absolute_difference_metric)
+            mean_weighted_absolute_difference_metric = np.mean(weighted_absolute_difference_metric)
+        else:
+            mean_snr_median = float('nan')
+            mean_ks_metric = float('nan')
+            mean_asci_metric = float('nan')     
+            mean_weighted_absolute_difference_metric = float('nan')          
 
     else:
         mean_snr = float('nan')
         mean_snr_median = float('nan')
         mean_ks_metric = float('nan')
-        mean_asci_metric = float('nan')        
+        mean_asci_metric = float('nan')  
+        mean_weighted_absolute_difference_metric = float('nan')          
 
     # Compute the classification metrics.
     records_completed_classification = list()
@@ -166,7 +174,7 @@ def evaluate_model(label_folder, output_folder):
 # Run the code.
 def run(args):
     # Compute the scores for the model outputs.
-    scores = evaluate_model(args.label_folder, args.output_folder)
+    scores = evaluate_model(args.label_folder, args.output_folder, args.extra_scores)
 
     # Unpack the scores.
     snr, snr_median, ks_metric, asci_metric, mean_weighted_absolute_difference_metric, f_measure = scores

@@ -452,7 +452,7 @@ def compute_ks_metric(label_signal, output_signal):
 
     return goodness_of_fit
 
-# Compute the ASCI metric.
+# Compute the adaptive signed correlation index (ASCI) metric.
 def compute_asci_metric(label_signal, output_signal, beta=0.05):
     label_signal = np.asarray(label_signal)
     output_signal = np.asarray(output_signal)
@@ -476,20 +476,23 @@ def compute_asci_metric(label_signal, output_signal, beta=0.05):
 
     return asci
 
-# Compute weighted absolute difference.
+# Compute a weighted absolute difference metric.
 def compute_weighted_absolute_difference(label_signal, output_signal, fs):
     label_signal = np.asarray(label_signal)
     output_signal = np.asarray(output_signal)
-    assert(np.all(np.shape(label_signal) == np.shape(output_signal)))
+    assert(label_signal.ndim == 1 and np.size(label_signal) == np.size(output_signal))
 
-    from scipy.signal import butter, filtfilt
+    from scipy.signal import filtfilt
 
-    b, a = butter(5, fs/4, fs=fs)
-    x1 = filtfilt(b, a, label_signal, method='gust')
-    x2 = 1-((0.5/np.max(x1))*x1)
-    n = np.sum(x2)
+    label_signal[np.isnan(label_signal)] = 0
+    output_signal[np.isnan(output_signal)] = 0
+
+    m = np.size(label_signal)
+    w = filtfilt(np.ones(m), m, label_signal, method='gust')
+    w = 1 - 0.5/np.max(w) * w
+    n = np.sum(w)
     
-    weighted_absolute_difference_metric = np.sum(np.abs(label_signal-output_signal)*x2)/n
+    weighted_absolute_difference_metric = np.sum(np.abs(label_signal-output_signal) * w)/n
 
     return weighted_absolute_difference_metric
 
