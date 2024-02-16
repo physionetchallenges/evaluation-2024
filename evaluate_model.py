@@ -115,20 +115,20 @@ def evaluate_model(label_folder, output_folder, extra_scores=False):
 
     if records_completed_signal_reconstruction:
         snrs = np.concatenate(snrs)
-        mean_snr = np.mean(snrs)
+        mean_snr = np.nanmean(snrs)
 
         if extra_scores:
             snrs_median = np.concatenate(snrs_median)
-            mean_snr_median = np.mean(snrs_median)
+            mean_snr_median = np.nanmean(snrs_median)
 
             ks_metric = np.concatenate(ks_metric)
-            mean_ks_metric = np.mean(ks_metric)
+            mean_ks_metric = np.nanmean(ks_metric)
 
             asci_metric = np.concatenate(asci_metric)
-            mean_asci_metric = np.mean(asci_metric)
+            mean_asci_metric = np.nanmean(asci_metric)
 
             weighted_absolute_difference_metric = np.concatenate(weighted_absolute_difference_metric)
-            mean_weighted_absolute_difference_metric = np.mean(weighted_absolute_difference_metric)
+            mean_weighted_absolute_difference_metric = np.nanmean(weighted_absolute_difference_metric)
         else:
             mean_snr_median = float('nan')
             mean_ks_metric = float('nan')

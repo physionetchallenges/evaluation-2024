@@ -403,10 +403,12 @@ def compute_snr(label_signal, output_signal):
     x = np.sum(label_signal**2)
     y = np.sum(noise_signal**2)
 
-    if y > 0:
+    if x > 0 and y > 0:
         snr = 10 * np.log10(x / y)
-    else:
+    elif x > 0 and y == 0:
         snr = float('inf')
+    else:
+        snr = float('nan')
 
     return snr
 
