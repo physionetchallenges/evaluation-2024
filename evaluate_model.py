@@ -104,8 +104,7 @@ def evaluate_model(label_folder, output_folder, extra_scores=False):
                     value = compute_asci_metric(label_signal[:, j], output_signal[:, j])
                     asci_metric[(record, channel)] = value
 
-                    # value = compute_weighted_absolute_difference(label_signal[:, j], output_signal[:, j], sampling_frequency)
-                    value = float('nan') # Temporary placeholder
+                    value = compute_weighted_absolute_difference(label_signal[:, j], output_signal[:, j], sampling_frequency)
                     weighted_absolute_difference_metric[(record, channel)] = value
 
     # Compute the metrics.
