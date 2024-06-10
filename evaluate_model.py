@@ -39,8 +39,8 @@ def evaluate_model(input_folder, output_folder, extra_scores=False):
     if num_records == 0:
         raise FileNotFoundError('No records found.')
 
-    # Compute the signal reconstruction metrics.
-    records_completed_signal_reconstruction = list()
+    # Compute the digitization metrics.
+    records_completed_digitization = list()
     snr = dict()
     snr_median = dict()
     ks_metric = dict()
@@ -70,7 +70,7 @@ def evaluate_model(input_folder, output_folder, extra_scores=False):
                 output_sampling_frequency = output_fields['fs']
                 output_units = output_fields['units']
 
-                records_completed_signal_reconstruction.append(record)
+                records_completed_digitization.append(record)
 
                 # Check that the input and output signals match as expected.
                 assert(input_sampling_frequency == output_sampling_frequency)
@@ -88,7 +88,7 @@ def evaluate_model(input_folder, output_folder, extra_scores=False):
             else:
                 output_signal = np.zeros_like(input_signal)
 
-            # Compute the signal reconstruction metrics.
+            # Compute the digitization metrics.
             channels = input_channels
             num_channels = input_num_channels
             sampling_frequency = input_sampling_frequency
@@ -111,7 +111,7 @@ def evaluate_model(input_folder, output_folder, extra_scores=False):
                     weighted_absolute_difference_metric[(record, channel)] = value
 
     # Compute the metrics.
-    if len(records_completed_signal_reconstruction) > 0:
+    if len(records_completed_digitization) > 0:
         snr = np.array(list(snr.values()))
         if not np.all(np.isnan(snr)):
             mean_snr = np.nanmean(snr)
@@ -162,15 +162,15 @@ def evaluate_model(input_folder, output_folder, extra_scores=False):
 
     # Iterate over the records.
     for record in records:
-        # Load the classes, if available.
+        # Load the labels, if available.
         input_record = os.path.join(input_folder, record)
         input_label = load_labels(input_record)
 
-        if input_label:
+        if any(label for label in input_label):
             output_record = os.path.join(output_folder, record)
             output_label = load_labels(output_record)
 
-            if output_label:
+            if any(label for label in output_label):
                 records_completed_classification.append(record)
 
             input_labels.append(input_label)
