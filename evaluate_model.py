@@ -164,11 +164,17 @@ def evaluate_model(input_folder, output_folder, extra_scores=False):
     for record in records:
         # Load the labels, if available.
         input_record = os.path.join(input_folder, record)
-        input_label = load_labels(input_record)
+        try:
+            input_label = load_labels(input_record)
+        except:
+            input_label = list()
 
         if any(label for label in input_label):
             output_record = os.path.join(output_folder, record)
-            output_label = load_labels(output_record)
+            try:
+                output_label = load_labels(output_record)
+            except:
+                output_label = list()
 
             if any(label for label in output_label):
                 records_completed_classification.append(record)
