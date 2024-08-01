@@ -4,12 +4,12 @@
 
 # This file contains functions for evaluating models for the Challenge. You can run it as follows:
 #
-#   python evaluate_model.py -d labels -o outputs -s scores.csv
+#   python evaluate_model.py -d data -o outputs -s scores.csv
 #
-# where 'labels' is a folder containing files with the labels for the data, 'outputs' is a folder containing files with the outputs
-# from your models, and 'scores.csv' (optional) is a collection of scores for the model outputs.
+# where 'data' is a folder containing files with the reference signals and labels for the data, 'outputs' is a folder containing
+# files with the outputs from your models, and 'scores.csv' (optional) is a collection of scores for the model outputs.
 #
-# Each label or output file must have the format described on the Challenge webpage. The scores for the algorithm outputs are also
+# Each data or output file must have the format described on the Challenge webpage. The scores for the algorithm outputs are also
 # described on the Challenge webpage.
 
 import argparse
@@ -24,16 +24,17 @@ from helper_code import *
 def get_parser():
     description = 'Evaluate the Challenge models.'
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('-d', '--input_folder', type=str, required=True)
-    parser.add_argument('-o', '--output_folder', type=str, required=True)
+    parser.add_argument('-d', '--folder_ref', type=str, required=True)
+    parser.add_argument('-o', '--folder_est', type=str, required=True)
+    parser.add_argument('-n', '--no_shift', action='store_true')
     parser.add_argument('-x', '--extra_scores', action='store_true')
     parser.add_argument('-s', '--score_file', type=str, required=False)
     return parser
 
 # Evaluate the models.
-def evaluate_model(input_folder, output_folder, extra_scores=False):
+def evaluate_model(folder_ref, folder_est, no_shift=False, extra_scores=False):
     # Find the records.
-    records = find_records(input_folder)
+    records = find_records(folder_ref)
     num_records = len(records)
 
     if num_records == 0:
@@ -50,64 +51,82 @@ def evaluate_model(input_folder, output_folder, extra_scores=False):
     # Iterate over the records.
     for record in records:
         # Load the signals, if available.
-        input_record = os.path.join(input_folder, record)
-        input_signal, input_fields = load_signals(input_record)
+        record_ref = os.path.join(folder_ref, record)
+        signal_ref, fields_ref = load_signals(record_ref)
 
-        if input_signal is not None:
-            input_channels = input_fields['sig_name']
-            input_num_channels = input_fields['n_sig']
-            input_num_samples = input_fields['sig_len']
-            input_sampling_frequency = input_fields['fs']
-            input_units = input_fields['units']
+        if signal_ref is not None:
+            channels_ref = fields_ref['sig_name']
+            num_channels_ref = fields_ref['n_sig']
+            num_samples_ref = fields_ref['sig_len']
+            sampling_frequency_ref = fields_ref['fs']
+            units_ref = fields_ref['units']
 
-            output_record = os.path.join(output_folder, record)
-            output_signal, output_fields = load_signals(output_record)
+            record_est = os.path.join(folder_est, record)
+            signal_est, fields_est = load_signals(record_est)
 
-            if output_signal is not None:
-                output_channels = output_fields['sig_name']
-                output_num_channels = output_fields['n_sig']
-                output_num_samples = output_fields['sig_len']
-                output_sampling_frequency = output_fields['fs']
-                output_units = output_fields['units']
+            if signal_est is not None:
+                channels_est = fields_est['sig_name']
+                num_channels_est = fields_est['n_sig']
+                num_samples_est = fields_est['sig_len']
+                sampling_frequency_est = fields_est['fs']
+                units_est = fields_est['units']
 
                 records_completed_digitization.append(record)
 
-                # Check that the input and output signals match as expected.
-                assert(input_sampling_frequency == output_sampling_frequency)
-                assert(input_units == output_units)
+                # Check that the reference and and digitized signals match as expected.
+                assert(sampling_frequency_ref == sampling_frequency_est)
+                assert(units_ref == units_est)
 
-                # Reorder the channels in the output signal to match the channels in the input signal.
-                output_signal = reorder_signal(output_signal, output_channels, input_channels)
+                # Check that the units for all of the channels are mV.
+                assert(len(set(units_ref)) == 1 and sorted(set(units_ref))[0] == 'mV')
 
-                # Trim or pad the channels in the output signal to match the channels in the input signal.
-                output_signal = trim_signal(output_signal, input_num_samples)
-
-                # Replace the samples with NaN values in the output signal with zeros.
-                output_signal[np.isnan(output_signal)] = 0
+                # Reorder the channels in the digitzed signal to match the channels in the reference signal.
+                signal_est = reorder_signal(signal_est, channels_est, channels_ref)
 
             else:
-                output_signal = np.zeros_like(input_signal)
+                signal_est = np.nan*np.ones(np.shape(signal_ref))
 
-            # Compute the digitization metrics.
-            channels = input_channels
-            num_channels = input_num_channels
-            sampling_frequency = input_sampling_frequency
+            # Compute the metrics.
+            channels = channels_ref
+            num_channels = num_channels_ref
+            sampling_frequency = sampling_frequency_ref
 
+            # Set limits on how far the signal can be shifted, and the number of quantization levels when shifting the signals.
+            max_hz_shift = np.round(0.5*sampling_frequency)
+            max_vt_shift = 1.0
+            num_quant_levels = 2**8
+
+            # Shift the digitied signals to better align with the reference signals.
+            signal_ref_collection = list()
+            signal_est_collection = list()
             for j, channel in enumerate(channels):
-                value = compute_snr(input_signal[:, j], output_signal[:, j])
+                signal_ref_collection.append(signal_ref[:, j])
+                # Align the signals.
+                if not no_shift:
+                    signal_shifted, shift_hz, shift_vt = align_signals(signal_ref[:, j], signal_est[:, j], num_quant_levels=num_quant_levels)
+                    if abs(shift_hz) <= max_hz_shift and abs(shift_vt) <= max_vt_shift:
+                        signal_est_collection.append(signal_shifted)
+                    else:
+                        signal_est_collection.append(signal_est[:, j])
+                else:
+                    signal_est_collection.append(signal_est[:, j])
+
+            # Compute the SNRs and, optionally, additional metrics.
+            for j, channel in enumerate(channels):
+                value, p_signal, p_noise = compute_snr(signal_ref_collection[j], signal_est_collection[j])
                 snr[(record, channel)] = value
 
                 if extra_scores:
-                    value = compute_snr_median(input_signal[:, j], output_signal[:, j])
+                    value = compute_snr(signal_ref_collection[j], signal_est_collection[j], noise_median=True)
                     snr_median[(record, channel)] = value
 
-                    value = compute_ks_metric(input_signal[:, j], output_signal[:, j])
+                    value = compute_ks_metric(signal_ref_collection[j], signal_est_collection[j])
                     ks_metric[(record, channel)] = value
 
-                    value = compute_asci_metric(input_signal[:, j], output_signal[:, j])
+                    value = compute_asci_metric(signal_ref_collection[j], signal_est_collection[j])
                     asci_metric[(record, channel)] = value
 
-                    value = compute_weighted_absolute_difference(input_signal[:, j], output_signal[:, j], sampling_frequency)
+                    value = compute_weighted_absolute_difference(signal_ref_collection[j], signal_est_collection[j], sampling_frequency)
                     weighted_absolute_difference_metric[(record, channel)] = value
 
     # Compute the metrics.
@@ -157,34 +176,34 @@ def evaluate_model(input_folder, output_folder, extra_scores=False):
 
     # Compute the classification metrics.
     records_completed_classification = list()
-    input_labels = list()
-    output_labels = list()
+    labels_ref = list()
+    labels_est = list()
 
     # Iterate over the records.
     for record in records:
         # Load the labels, if available.
-        input_record = os.path.join(input_folder, record)
+        record_ref = os.path.join(folder_ref, record)
         try:
-            input_label = load_labels(input_record)
+            label_ref = load_labels(record_ref)
         except:
-            input_label = list()
+            label_ref = list()
 
-        if any(label for label in input_label):
-            output_record = os.path.join(output_folder, record)
+        if any(label for label in label_ref):
+            record_est = os.path.join(folder_est, record)
             try:
-                output_label = load_labels(output_record)
+                label_est = load_labels(record_est)
             except:
-                output_label = list()
+                label_est = list()
 
-            if any(label for label in output_label):
+            if any(label for label in label_est):
                 records_completed_classification.append(record)
 
-            input_labels.append(input_label)
-            output_labels.append(output_label)
+            labels_ref.append(label_ref)
+            labels_est.append(label_est)
 
     # Compute the metrics.
     if len(records_completed_classification) > 0:
-        f_measure, _, _ = compute_f_measure(input_labels, output_labels)
+        f_measure, _, _ = compute_f_measure(labels_ref, labels_est)
     else:
         f_measure = float('nan')
 
@@ -194,7 +213,7 @@ def evaluate_model(input_folder, output_folder, extra_scores=False):
 # Run the code.
 def run(args):
     # Compute the scores for the model outputs.
-    scores = evaluate_model(args.input_folder, args.output_folder, args.extra_scores)
+    scores = evaluate_model(args.folder_ref, args.folder_est, args.no_shift, args.extra_scores)
 
     # Unpack the scores.
     snr, snr_median, ks_metric, asci_metric, mean_weighted_absolute_difference_metric, f_measure = scores
