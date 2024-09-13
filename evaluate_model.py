@@ -28,7 +28,8 @@ def get_parser():
     parser.add_argument('-o', '--folder_est', type=str, required=True)
     parser.add_argument('-n', '--no_shift', action='store_true')
     parser.add_argument('-x', '--extra_scores', action='store_true')
-    parser.add_argument('-s', '--score_file', type=str, required=False)
+    parser.add_argument('-s', '--summary_score_file', type=str, required=False)
+    parser.add_argument('-t', '--total_score_file', nargs='*', type=str, required=False)
     return parser
 
 # Evaluate the models.
@@ -131,34 +132,34 @@ def evaluate_model(folder_ref, folder_est, no_shift=False, extra_scores=False):
 
     # Compute the metrics.
     if len(records_completed_digitization) > 0:
-        snr = np.array(list(snr.values()))
-        if not np.all(np.isnan(snr)):
-            mean_snr = np.nanmean(snr)
+        snr_values = np.array(list(snr.values()))
+        if not np.all(np.isnan(snr_values)):
+            mean_snr = np.nanmean(snr_values)
         else:
             mean_snr = float('nan')
 
         if extra_scores:
-            snr_median = np.array(list(snr_median.values()))
-            if not np.all(np.isnan(snr_median)):
-                mean_snr_median = np.nanmean(snr_median)
+            snr_median_values = np.array(list(snr_median.values()))
+            if not np.all(np.isnan(snr_median_values)):
+                mean_snr_median = np.nanmean(snr_median_values)
             else:
                 mean_snr_median = float('nan')
 
-            ks_metric = np.array(list(ks_metric.values()))
-            if not np.all(np.isnan(ks_metric)):
-                mean_ks_metric = np.nanmean(ks_metric)
+            ks_metric_values = np.array(list(ks_metric.values()))
+            if not np.all(np.isnan(ks_metric_values)):
+                mean_ks_metric = np.nanmean(ks_metric_values)
             else:
                 mean_ks_metric = float('nan')
 
-            asci_metric = np.array(list(asci_metric.values()))
-            if not np.all(np.isnan(asci_metric)):
-                mean_asci_metric = np.nanmean(asci_metric)
+            asci_metric_values = np.array(list(asci_metric.values()))
+            if not np.all(np.isnan(asci_metric_values)):
+                mean_asci_metric = np.nanmean(asci_metric_values)
             else:
                 mean_asci_metric = float('nan')
 
-            weighted_absolute_difference_metric = np.array(list(weighted_absolute_difference_metric.values()))
-            if not np.all(np.isnan(weighted_absolute_difference_metric)):
-                mean_weighted_absolute_difference_metric = np.nanmean(weighted_absolute_difference_metric)
+            weighted_absolute_difference_metric_values = np.array(list(weighted_absolute_difference_metric.values()))
+            if not np.all(np.isnan(weighted_absolute_difference_metric_values)):
+                mean_weighted_absolute_difference_metric = np.nanmean(weighted_absolute_difference_metric_values)
             else:
                 mean_weighted_absolute_difference_metric = float('nan')
         else:
@@ -203,12 +204,12 @@ def evaluate_model(folder_ref, folder_est, no_shift=False, extra_scores=False):
 
     # Compute the metrics.
     if len(records_completed_classification) > 0:
-        f_measure, _, _ = compute_f_measure(labels_ref, labels_est)
+        macro_f_measure, per_class_f_measure, classes = compute_f_measure(labels_ref, labels_est)
     else:
-        f_measure = float('nan')
+        macro_f_measure, per_class_f_measure, classes = float('nan'), [], []
 
     # Return the results.
-    return mean_snr, mean_snr_median, mean_ks_metric, mean_asci_metric, mean_weighted_absolute_difference_metric, f_measure
+    return mean_snr, mean_snr_median, mean_ks_metric, mean_asci_metric, mean_weighted_absolute_difference_metric, macro_f_measure, snr, per_class_f_measure, classes
 
 # Run the code.
 def run(args):
@@ -216,7 +217,7 @@ def run(args):
     scores = evaluate_model(args.folder_ref, args.folder_est, args.no_shift, args.extra_scores)
 
     # Unpack the scores.
-    snr, snr_median, ks_metric, asci_metric, mean_weighted_absolute_difference_metric, f_measure = scores
+    snr, snr_median, ks_metric, asci_metric, mean_weighted_absolute_difference_metric, f_measure, total_snr, per_class_f_measure, classes = scores
 
     # Construct a string with scores.
     if not args.extra_scores:
@@ -233,10 +234,27 @@ def run(args):
             f'F-measure: {f_measure:.3f}\n'
 
     # Output the scores to screen and/or a file.
-    if args.score_file:
-        save_text(args.score_file, output_string)
+    if args.summary_score_file:
+        save_text(args.summary_score_file, output_string)
     else:
         print(output_string)
+
+    if len(args.total_score_file) > 0:
+        records = sorted(set(record for (record, channel) in total_snr))
+        channels = sorted(set(channel for (record, channel) in total_snr))
+        
+        output_string = 'Record' + '\t' + '\t'.join(channels) + '\n'
+        for record in records:
+            values = [total_snr[(record, channel)] if (record, channel) in total_snr else None for channel in channels]
+            output_string += record + '\t' + '\t'.join(map(str, values)) + '\n'
+        
+        save_text(args.total_score_file[0], output_string)
+
+        output_string = ''
+        for a, b in zip(classes, per_class_f_measure):
+            output_string += f'{a}\t{b}\n'
+
+        save_text(args.total_score_file[1], output_string)
 
 if __name__ == '__main__':
     run(get_parser().parse_args(sys.argv[1:]))
