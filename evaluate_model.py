@@ -29,7 +29,8 @@ def get_parser():
     parser.add_argument('-n', '--no_shift', action='store_true')
     parser.add_argument('-x', '--extra_scores', action='store_true')
     parser.add_argument('-s', '--summary_score_file', type=str, required=False)
-    parser.add_argument('-t', '--total_score_file', nargs='*', type=str, required=False)
+    parser.add_argument('-ta', '--total_snr_file', type=str, required=False)
+    parser.add_argument('-tb', '--total_f_measure_file', type=str, required=False)
     return parser
 
 # Evaluate the models.
@@ -239,7 +240,7 @@ def run(args):
     else:
         print(output_string)
 
-    if len(args.total_score_file) > 0:
+    if args.total_snr_file:
         records = sorted(set(record for (record, channel) in total_snr))
         channels = sorted(set(channel for (record, channel) in total_snr))
         
@@ -248,13 +249,14 @@ def run(args):
             values = [total_snr[(record, channel)] if (record, channel) in total_snr else None for channel in channels]
             output_string += record + '\t' + '\t'.join(map(str, values)) + '\n'
         
-        save_text(args.total_score_file[0], output_string)
+        save_text(args.total_snr_file, output_string)
 
+    if args.total_f_measure_file:
         output_string = ''
         for a, b in zip(classes, per_class_f_measure):
             output_string += f'{a}\t{b}\n'
 
-        save_text(args.total_score_file[1], output_string)
+        save_text(args.total_f_measure_file, output_string)
 
 if __name__ == '__main__':
     run(get_parser().parse_args(sys.argv[1:]))
